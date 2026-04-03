@@ -51,8 +51,7 @@ async function main() {
     if(toolCalls[0].type==="function" && toolCalls[0].function.name==="Read"){
       const functionArgs=JSON.parse(toolCalls[0].function.arguments);
       const filePath=functionArgs.file_path;
-      const file=Bun.file(filePath);
-      const fileText= await file.text();
+      const fileText=await Bun.file(filePath).text();
       process.stdout.write(fileText);
     }else{
       console.error("No tool call found for this command", toolCalls);
