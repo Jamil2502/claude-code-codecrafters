@@ -54,7 +54,7 @@ async function main() {
       const fileText=await Bun.file(filePath).text();
       process.stdout.write(fileText);
     }else{
-      console.error("No tool call found for this command", toolCalls);
+      console.error("No tool call found for this command", response.choices[0].message.content);
     }
   }
 
