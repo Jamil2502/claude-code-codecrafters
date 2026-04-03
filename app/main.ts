@@ -54,15 +54,16 @@ async function main() {
       const fileText=await Bun.file(filePath).text();
       process.stdout.write(fileText);
     }else{
-      console.error("No tool call found for this command", response.choices[0].message.content);
+      console.error("No tool call found for this command", todoCalls);
     }
   }
 
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   console.error("Logs from your program will appear here!");
 
-  // TODO: Uncomment the lines below to pass the first stage
+  if (response.choices[0].message.content) {
   console.log(response.choices[0].message.content);
+}
 }
 
 main();
