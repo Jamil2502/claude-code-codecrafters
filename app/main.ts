@@ -46,6 +46,19 @@ async function main() {
     throw new Error("no choices in response");
   }
 
+  const toolCalls = response.choices[0].message.tool_calls;
+  if(toolCalls && toolCalls.length>0){
+    if(toolCalls[0].type==="function" && toolCalls[0].function.name==="Read"){
+      const functionArgs=JSON.parse(toolCalls[0].function.arguments);
+      const filePath=functionArgs.file_path;
+      const file=Bun.file(filePath);
+      const fileText= await file.text();
+      process.stdout.write(fileText);
+    }else{
+      console.error("No tool call found for this command", toolCalls);
+    }
+  }
+
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   console.error("Logs from your program will appear here!");
 
