@@ -1,24 +1,21 @@
 import OpenAI from "openai";
-import util from 'node:util';
 import { exec } from "child_process";
-
 
 async function main() {
   const [, , flag, prompt] = process.argv;
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const baseURL =
-    process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is not set");
-  }
   if (flag !== "-p" || !prompt) {
     throw new Error("error: -p flag is required");
   }
 
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set");
+  }
+
   const client = new OpenAI({
-    apiKey: apiKey,
-    baseURL: baseURL,
+    apiKey,
+    baseURL: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
   });
 
   const tools = [
@@ -30,10 +27,7 @@ async function main() {
         parameters: {
           type: "object",
           properties: {
-            file_path: {
-              type: "string",
-              description: "The path to the file to read",
-            },
+            file_path: { type: "string" },
           },
           required: ["file_path"],
         },
@@ -46,17 +40,11 @@ async function main() {
         description: "Write content to a file",
         parameters: {
           type: "object",
-          required: ["file_path", "content"],
           properties: {
-            file_path: {
-              type: "string",
-              description: "The path of the file to write to",
-            },
-            content: {
-              "type": "string",
-              "description": "The content to write to the file"
-            },
+            file_path: { type: "string" },
+            content: { type: "string" },
           },
+          required: ["file_path", "content"],
         },
       },
     },
@@ -67,95 +55,68 @@ async function main() {
         description: "Execute a shell command",
         parameters: {
           type: "object",
-          required: ["command"],
           properties: {
-            "command": {
-              "type": "string",
-              "description": "The command to execute"
-            }
+            command: { type: "string" },
           },
+          required: ["command"],
         },
       },
     },
-  ] satisfies OpenAI.Chat.Completions.ChatCompletionTool[];
+  ];
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "user", content: prompt },
   ];
 
   while (true) {
-    const response = await client.chat.completions.create({
+    const res = await client.chat.completions.create({
       model: "anthropic/claude-haiku-4.5",
-      messages: messages,
-      tools: tools,
+      messages,
+      tools,
     });
 
-    if (!response.choices || response.choices.length === 0) {
-      throw new Error("no choices in response");
-    }
-
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
-    const choice = response.choices[0];
-    const message = choice.message;
+    const message = res.choices[0].message;
 
     messages.push({
       role: "assistant",
       content: message.content ?? null,
-      ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
-    } satisfies OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
+      ...(message.tool_calls && { tool_calls: message.tool_calls }),
+    });
 
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      for (const toolCall of message.tool_calls) {
-         if (toolCall.type === "function" ){
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          if(toolCall.function.name === "Read"){
-            const filePath = functionArgs.file_path;
-            const fileText = await Bun.file(filePath).text()
-             messages.push({
-              role: "tool",
-              tool_call_id: toolCall.id,
-              content: fileText,
-            } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
-          }
-          else if(toolCall.function.name === "Write"){
-            const filePath = functionArgs.file_path;
-            const fileContent=functionArgs.content;
-            await Bun.write(filePath,fileContent);
-            messages.push({
-              role: "tool",
-              tool_call_id: toolCall.id,
-              content: fileContent,
-            } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
-          }
-          else if(toolCall.function.name ==="Bash"){
-            const fileCommand=functionArgs.command;
-            const output = await new Promise<string>((resolve) => {
-              exec(fileCommand, (error, stdout, stderr) => {
-                if (error) { 
-                  resolve(stderr || error.message)
-                }
-                else{
-                  resolve(stdout)
-                }
-              });
-            });
-            messages.push({
-              role: "tool",
-              tool_call_id: toolCall.id,
-              content: output,
-            } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
+    if (!message.tool_calls) {
+      if (message.content) console.log(message.content);
+      break;
+    }
 
-          }
-          
-         }
+    for (const toolCall of message.tool_calls) {
+      if (toolCall.type === "function" ){
+      const args = JSON.parse(toolCall.function.arguments);
+      const name=toolCall.function.name;
+      let result = "";
+      if (name === "Read") {
+        result = await Bun.file(args.file_path).text();
       }
-      continue;
-    }
 
-    if (message.content) {
-      console.log(message.content);
+      else if (name === "Write") {
+        await Bun.write(args.file_path, args.content);
+        result = args.content;
+      }
+
+      else if (name === "Bash") {
+        result = await new Promise((resolve) => {
+          exec(args.command, (err, stdout, stderr) => {
+            resolve(err ? stderr || err.message : stdout);
+          });
+        });
+      }
+
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content: result,
+      });
     }
-    break;
+  }
   }
 }
 
