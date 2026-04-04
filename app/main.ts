@@ -36,6 +36,27 @@ async function main() {
         },
       },
     },
+    {
+      type: "function" as const,
+      function: {
+        name: "Write",
+        description: "Write content to a file",
+        parameters: {
+          type: "object",
+          required: ["file_path", "content"],
+          properties: {
+            file_path: {
+              type: "string",
+              description: "The path of the file to write to",
+            },
+            content: {
+              "type": "string",
+              "description": "The content to write to the file"
+            },
+          },
+        },
+      },
+    },
   ] satisfies OpenAI.Chat.Completions.ChatCompletionTool[];
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -65,17 +86,27 @@ async function main() {
 
     if (message.tool_calls && message.tool_calls.length > 0) {
       for (const toolCall of message.tool_calls) {
-         if (toolCall.type === "function" && toolCall.function.name === "Read"){
+         if (toolCall.type === "function" ){
           const functionArgs = JSON.parse(toolCall.function.arguments);
-      const filePath = functionArgs.file_path;
-      
-      // Now the code stops here until the file is actually read
-      const fileText = await Bun.file(filePath).text()
-      messages.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: fileText,
-      } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
+          const filePath = functionArgs.file_path;
+          if(toolCall.function.name === "Read"){
+            const fileText = await Bun.file(filePath).text()
+             messages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: fileText,
+            } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
+          }
+          else if(toolCall.function.name === "Write"){
+            const fileContent=functionArgs.content;
+            await Bun.write(filePath,fileContent);
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: fileContent,
+            } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
+          }
+          
          }
       }
       continue;
