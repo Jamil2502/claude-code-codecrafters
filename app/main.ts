@@ -1,4 +1,7 @@
 import OpenAI from "openai";
+import util from 'node:util';
+import { exec } from "child_process";
+
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -57,6 +60,23 @@ async function main() {
         },
       },
     },
+    {
+      type: "function" as const,
+      function: {
+        name: "Bash",
+        description: "Execute a shell command",
+        parameters: {
+          type: "object",
+          required: ["command"],
+          properties: {
+            "command": {
+              "type": "string",
+              "description": "The command to execute"
+            }
+          },
+        },
+      },
+    },
   ] satisfies OpenAI.Chat.Completions.ChatCompletionTool[];
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -88,8 +108,8 @@ async function main() {
       for (const toolCall of message.tool_calls) {
          if (toolCall.type === "function" ){
           const functionArgs = JSON.parse(toolCall.function.arguments);
-          const filePath = functionArgs.file_path;
           if(toolCall.function.name === "Read"){
+            const filePath = functionArgs.file_path;
             const fileText = await Bun.file(filePath).text()
              messages.push({
               role: "tool",
@@ -98,6 +118,7 @@ async function main() {
             } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
           }
           else if(toolCall.function.name === "Write"){
+            const filePath = functionArgs.file_path;
             const fileContent=functionArgs.content;
             await Bun.write(filePath,fileContent);
             messages.push({
@@ -105,6 +126,25 @@ async function main() {
               tool_call_id: toolCall.id,
               content: fileContent,
             } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
+          }
+          else if(toolCall.function.name ==="Bash"){
+            const fileCommand=functionArgs.command;
+            const output = await new Promise<string>((resolve) => {
+              exec(fileCommand, (error, stdout, stderr) => {
+                if (error) { 
+                  resolve(stderr || error.message)
+                }
+                else{
+                  resolve(stdout)
+                }
+              });
+            });
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: output,
+            } satisfies OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
+
           }
           
          }
