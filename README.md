@@ -1,34 +1,94 @@
-[![progress-banner](https://backend.codecrafters.io/progress/claude-code/50306bc7-a406-4b1b-abbe-08974545acf3)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# My Claude Code Implementation
 
-This is a starting point for TypeScript solutions to the
-["Build Your own Claude Code" Challenge](https://codecrafters.io/challenges/claude-code).
+This is my TypeScript/Bun implementation of the CodeCrafters
+["Build your own Claude Code"](https://codecrafters.io/challenges/claude-code)
+challenge.
 
-Claude Code is an AI coding assistant that uses Large Language Models (LLMs) to
-understand code and perform actions through tool calls. In this challenge,
-you'll build your own Claude Code from scratch by implementing an LLM-powered
-coding assistant.
+I built this project to understand how an AI coding assistant works internally:
+how it talks to an LLM, advertises tools, executes the tools requested by the
+model, and continues the conversation until the model has a final answer.
 
-Along the way you'll learn about HTTP RESTful APIs, OpenAI-compatible tool
-calling, agent loop, and how to integrate multiple tools into an AI assistant.
+## What it can do
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+The program currently gives the model three tools:
 
-# Passing the first stage
+- `Read` - read the contents of a file
+- `Write` - create or update a file
+- `Bash` - execute a shell command
 
-The entry point for your `claude-code` implementation is in `app/main.ts`. Study
-and uncomment the relevant code, and submit to pass the first stage:
+The application keeps the conversation history in memory. When the model
+requests a tool, the program executes it and sends the result back to the
+model. The loop continues until the model returns a normal text response.
+
+Tool failures are returned to the model as explicit error messages so it can
+decide how to continue.
+
+## Project structure
+
+- `app/main.ts` - application entry point and main agent loop
+- `your_program.sh` - local launcher
+- `.codecrafters/run.sh` - CodeCrafters launcher
+- `package.json` - scripts and dependencies
+- `tsconfig.json` - TypeScript configuration
+
+## Running locally
+
+Install the dependencies:
+
+```sh
+npm install
+```
+
+Set your OpenRouter API key. In PowerShell, for example:
+
+```powershell
+$env:OPENROUTER_API_KEY="your-api-key"
+```
+
+Run the program with a prompt:
+
+```sh
+./your_program.sh -p "Read app/main.ts and explain what it does"
+```
+
+You can also run it directly with Bun:
+
+```sh
+bun run app/main.ts -p "Calculate 8 * 8"
+```
+
+## Configuration
+
+The program reads these environment variables:
+
+- `OPENROUTER_API_KEY` - required API key
+- `OPENROUTER_BASE_URL` - optional API endpoint override
+
+If `OPENROUTER_BASE_URL` is not set, the program uses:
+
+```text
+https://openrouter.ai/api/v1
+```
+
+## Running the CodeCrafters tests
+
+Submit the current implementation with:
 
 ```sh
 codecrafters submit
 ```
 
-# Stage 2 & beyond
+CodeCrafters creates temporary files and runs `your_program.sh` against them.
+The repository README is not used as the program's input during those tests.
 
-Note: This section is for stages 2 and beyond.
+## Checking the code
 
-1. Ensure you have `bun (1.3)` installed locally.
-2. Run `./your_program.sh` to run your program, which is implemented in
-   `app/main.ts`.
-3. Run `codecrafters submit` to submit your solution to CodeCrafters. Test
-   output will be streamed to your terminal.
+Run the TypeScript type checker with:
+
+```sh
+bunx tsc --noEmit
+```
+
+This project is part of my learning process, so the implementation is kept
+small and focused on understanding the individual pieces of an LLM-powered
+coding assistant.
