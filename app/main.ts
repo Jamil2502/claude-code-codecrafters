@@ -89,25 +89,34 @@ async function main() {
     }
 
     for (const toolCall of message.tool_calls) {
-      if (toolCall.type === "function" ){
-      const args = JSON.parse(toolCall.function.arguments);
-      const name=toolCall.function.name;
       let result = "";
-      if (name === "Read") {
-        result = await Bun.file(args.file_path).text();
-      }
 
-      else if (name === "Write") {
-        await Bun.write(args.file_path, args.content);
-        result = args.content;
-      }
+      if (toolCall.type === "function") {
+        try {
+          const args = JSON.parse(toolCall.function.arguments);
+          const name = toolCall.function.name;
 
-      else if (name === "Bash") {
-        result = await new Promise((resolve) => {
-          exec(args.command, (err, stdout, stderr) => {
-            resolve(err ? stderr || err.message : stdout);
-          });
-        });
+          if (name === "Read") {
+            result = await Bun.file(args.file_path).text();
+          } else if (name === "Write") {
+            await Bun.write(args.file_path, args.content);
+            result = args.content;
+          } else if (name === "Bash") {
+            result = await new Promise<string>((resolve) => {
+              exec(args.command, (error, stdout, stderr) => {
+                resolve(error ? stderr || error.message : stdout);
+              });
+            });
+          } else {
+            result = `Unknown tool: ${name}`;
+          }
+        } catch (error) {
+          result = `Tool execution failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`;
+        }
+      } else {
+        result = `Unsupported tool call type: ${toolCall.type}`;
       }
 
       messages.push({
@@ -116,7 +125,6 @@ async function main() {
         content: result,
       });
     }
-  }
   }
 }
 
